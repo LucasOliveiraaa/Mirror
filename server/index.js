@@ -10,6 +10,8 @@ var screen = null
 
 function startScreen({port, address}){
     screen = setInterval(async ()=>{
+        // TODO: Add support to multiscreen share
+
         screenshot({ format: "png" })
             .then(img=>{
                 img = img.toString("base64")
@@ -29,12 +31,12 @@ function startScreen({port, address}){
                     console.log("sended")
                 })
             })
-    }, 50 / 1000)
+    }, 60 / 1000)
 }
 
 function testConnectionTo(port, address){
     test = setInterval(()=>{
-        server.send(Buffer.from("{with:false}"), port, address, err=>{
+        server.send(Buffer.from("{\"with\":false}"), port, address, err=>{
             if(err) return
 
             clearInterval(test)
@@ -50,41 +52,43 @@ server.on("listening", ()=>{
     console.log("Server up on "+address.address+":"+port)
 })
 
-const events = {
-    keydown(key){
+const events = [
+    (key)=>{
         robot.keyToggle(key, "down")
     },
-    keyup(key){
+    (key)=>{
         robot.keyToggle(key, "up")
     },
-    mousemove({x, y}){
+    (x, y)=>{
         robot.moveMouse(x, y)
     },
-    mousedown(mouse){
+    (mouse, x, y)=>{
         let btn = "middle"
         if(mouse == 0) btn = "left"
         else if(mouse == 2) btn = "right"
 
+        robot.moveMouse(x, y)
         robot.mouseToggle("down", btn)
     },
-    mouseup(mouse){
+    (mouse, x, y)=>{
         let btn = "middle"
         if(mouse == 0) btn = "left"
         else if(mouse == 2) btn = "right"
 
+        robot.moveMouse(x, y)
         robot.mouseToggle("up", btn)
     },
-    wheel({x, y}){
+    (x, y)=>{
         robot.scrollMouse(x, y)
     }
-}
+]
 
-server.on("message", (msg, info)=>{
+server.on("message", msg=>{
     msg = JSON.parse(msg.toString())
     
     if(screen == null) startScreen(info)
-
-    events[msg[0]]?.(msg[1])
+    console.log(msg)
+    events[msg.shift()]?.(...msg)
 })
 
 server.bind(port)

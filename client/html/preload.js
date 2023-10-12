@@ -1,58 +1,108 @@
-const { ipcRenderer } = require("electron")
+const dgram = require("node:dgram")
+const cl = dgram.createSocket("udp4")
+
+const port = 2222,
+      address = "0.0.0.0"
 
 var can = false
+var test = null
+var timeLost = 0
+var pressed = []
 
-ipcRenderer.on("can", ()=>{
-    document.querySelector("p").style.display = "none"
-    document.querySelector("img").style.display = "block"
-    can = true
-})
+function tryConnect(){
+    test = setInterval(()=>{
+        if(timeLost >= 15000){
+            showMessage("Can't connect to the server on 0.0.0.0:2222. Verify if the server is on and try again.")
+            clearInterval(test)
+        }
 
-ipcRenderer.on("data", (ev, args)=>{
-    const img = document.querySelector("img")
-    img.src = args.image
-})
+        cl.send(Buffer.from(`["connection tester"]`), port, address, (err)=>{
+            if(err) return
+        
+            timeLost = 0
+            can = true
+            setView(true)
+            clearInterval(test)
+        })
+        timeLost += 350
+    }, 350)
+}
 
-function send(ev, data){
+function setView(show){
+    document.querySelector("img").style.display = show?"flex":"none"
+    document.querySelector("p").style.display = show?"none":"flex"
+}
+
+function showMessage(msg){
+    const p = document.querySelector("p")
+    p.innerHTML = msg
+    setView(false)
+}
+
+function send(data){
     if(!can) return
-    ipcRenderer.send("data", data)
+
+    console.log(data)
+
+    cl.send(Buffer.from(data), port, address, err=>{
+        if(!err) return
+        can = false
+
+        showMessage("Connection lost. Reconnecting...<br><br>"+err)
+        tryConnect()
+    })
 }
 
 window.addEventListener("DOMContentLoaded", ()=>{
-    document.addEventListener("keydown", ev=>{
-        send([
-            "keydown", ev.key.toLowerCase()
-        ])
-    })
-    document.addEventListener("keypress", ev=>{
-        send([
-            "keypress", ev.key.toLowerCase()
-        ])
-    })
-    document.addEventListener("keyup", ev=>{
-        send([
-            "keyup", ev.key.toLowerCase()
-        ])
+    cl.on("message", (data)=>{
+        data = JSON.parse(data)
+    
+        if(!data.with) return
+    
+        const img = document.querySelector("img")
+        img.src = data.image
+    
+        // TODO: Support audio source
     })
 
-    document.addEventListener("mousemove", ({x, y})=>{
-        send([
-            "mousemove", {x, y}
-        ])
+    tryConnect()
+
+    const layer = document.querySelector("#control")
+
+    document.addEventListener("keydown", ev=>{
+        ev.preventDefault()
+
+        if(pressed.includes(ev.key)) return
+
+        send(`[0, "${ev.key.toLowerCase()}"]`)
+
+        pressed.push(ev.key)
     })
-    document.addEventListener("mousedown", ev=>{
-        send([
-            "mousedown", ev.button
-        ])
+    document.addEventListener("keyup", ev=>{
+        ev.preventDefault()
+        
+        var i = pressed.indexOf(ev.key)
+        if(i > -1){
+            delete pressed[i]
+        }
+
+        send(`[1, "${ev.key.toLowerCase()}"]`)
     })
-    document.addEventListener("mouseup", (ev)=>{
-        send([
-            "mouseup", ev.button
-        ])
+
+    layer.addEventListener("mousemove", ev=>{
+        ev.preventDefault()
+        send(`[2, ${ev.offsetX}, ${ev.offsetY}]`)
     })
-    document.addEventListener("wheel", ev=>{
-        send([
-            "wheel", {x: ev.deltaX, y: ev.deltaY}
-        ])
+    layer.addEventListener("mousedown", ev=>{
+        console.log(ev)
+
+        //send(`[3, ${ev.button}, ${ev.offsetX}, ${ev.offsetY}]`)
+    })
+    layer.addEventListener("mouseup", (ev)=>{
+        send(`[4, ${ev.button}, ${ev.offsetX}, ${ev.offsetY}]`)
+    })
+    layer.addEventListener("wheel", ev=>{
+        ev.preventDefault()
+        send(`[5, ${ev.deltaX}, ${ev.deltaY}]`)
     })
 })
