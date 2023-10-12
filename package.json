@@ -1,0 +1,23 @@
+{
+  "name": "mirror",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start-server": "node server/index.js",
+    "start-client": "electron client/index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "desktop-screenshot": "^0.1.1",
+    "electron": "^27.0.0",
+    "http": "^0.0.1-security",
+    "mss": "^0.0.2",
+    "robotjs": "^0.6.0",
+    "screenshot-desktop": "^1.15.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.51.0"
+  }
+}
